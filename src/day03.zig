@@ -4,23 +4,19 @@ const process = std.process;
 const heap = std.heap;
 const mem = std.mem;
 const fs = std.fs;
+const cmdline = @import("libs/cmdline.zig");
 
 pub fn main() !void {
-    var arena = heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var allocator: mem.Allocator = arena.allocator();
+    const p = try cmdline.parse();
 
-    var arg_it = try process.argsWithAllocator(allocator);
-    // skip our own name
-    _ = arg_it.skip();
-
-    const filename = arg_it.next() orelse {
-        print("Missing filename\n", .{});
-        return error.InvalidArgs;
+    const solution: u32 = switch (p.part) {
+        1 => try testPart1(p.filename),
+        2 => try testPart2(p.filename),
+        else => {
+            return error.InvalidArgs;
+        },
     };
-
-    print("Filename: {s}\n", .{filename});
-    _ = try testPart2(filename);
+    print("Solution: {d}\n", .{solution});
 }
 
 pub fn getValue(char: u8) u8 {

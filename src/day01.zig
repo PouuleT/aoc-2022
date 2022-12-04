@@ -4,23 +4,19 @@ const process = std.process;
 const heap = std.heap;
 const mem = std.mem;
 const fs = std.fs;
+const cmdline = @import("libs/cmdline.zig");
 
 pub fn main() !void {
-    var arena = heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var allocator: mem.Allocator = arena.allocator();
+    const p = try cmdline.parse();
 
-    var arg_it = try process.argsWithAllocator(allocator);
-    // skip our own name
-    _ = arg_it.skip();
-
-    const filename = arg_it.next() orelse {
-        print("Missing filename\n", .{});
-        return error.InvalidArgs;
+    const solution: u32 = switch (p.part) {
+        1 => try testPart1(p.filename),
+        2 => try testPart2(p.filename),
+        else => {
+            return error.InvalidArgs;
+        },
     };
-
-    print("Filename: {s}\n", .{filename});
-    _ = try testPart1(filename);
+    print("Solution: {d}\n", .{solution});
 }
 
 pub fn testPart1(filename: []const u8) !u32 {
@@ -43,9 +39,7 @@ pub fn testPart1(filename: []const u8) !u32 {
         }
         var val = try std.fmt.parseUnsigned(u32, line, 10);
         current_max += val;
-        // print("{d} ( current max {d} ( max {d} ))\n", .{ val, current_max, max });
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 
@@ -63,11 +57,9 @@ pub fn testPart2(filename: []const u8) !u32 {
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         if (line.len == 0) {
-            // print("Evalute {d} vs top3\n", .{current});
             var tmp: u32 = 0;
             for (top3) |val, idx| {
                 if (current > val) {
-                    // print("{d} > {d} ( {d} )\n", .{ current, val, idx });
                     tmp = val;
                     top3[idx] = current;
                     if (idx > 0) {
@@ -76,17 +68,14 @@ pub fn testPart2(filename: []const u8) !u32 {
                 }
             }
             current = 0;
-            // print("top 3: {d} {d} {d} )\n", .{ top3[0], top3[1], top3[2] });
             continue;
         }
         var val = try std.fmt.parseUnsigned(u32, line, 10);
         current += val;
-        // print("{d} ( sum {d} )\n", .{ val, current });
     }
     for (top3) |val| {
         max += val;
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 
