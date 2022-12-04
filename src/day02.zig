@@ -1,8 +1,5 @@
 const std = @import("std");
 const print = std.debug.print;
-const process = std.process;
-const heap = std.heap;
-const mem = std.mem;
 const fs = std.fs;
 const cmdline = @import("libs/cmdline.zig");
 
@@ -50,21 +47,11 @@ pub fn testPart1(filename: []const u8) !u32 {
     var buf: [20]u8 = undefined;
     var max: u32 = 0;
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        var splits = std.mem.split(u8, line, " ");
-        var first = splits.next() orelse {
-            print("error getting first input\n", .{});
-            return error.InvalidArgs;
-        };
-        var second = splits.next() orelse {
-            print("error getting second input\n", .{});
-            return error.InvalidArgs;
-        };
-        var player1 = first[0] - 'A';
-        var player2 = second[0] - 'X';
+        var player1 = line[0] - 'A';
+        var player2 = line[2] - 'X';
         var result = game(player1, player2);
         max += result;
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 
@@ -90,21 +77,11 @@ pub fn testPart2(filename: []const u8) !u32 {
     var buf: [20]u8 = undefined;
     var max: u32 = 0;
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        var splits = std.mem.split(u8, line, " ");
-        var first = splits.next() orelse {
-            print("error getting first input\n", .{});
-            return error.InvalidArgs;
-        };
-        var second = splits.next() orelse {
-            print("error getting second input\n", .{});
-            return error.InvalidArgs;
-        };
-        var player1 = first[0] - 'A';
-        var player2 = guessPlay(player1, second[0] - 'X');
+        var player1 = line[0] - 'A';
+        var player2 = guessPlay(player1, line[2] - 'X');
         var result = game(player1, player2);
         max += result;
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 

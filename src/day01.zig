@@ -1,8 +1,5 @@
 const std = @import("std");
 const print = std.debug.print;
-const process = std.process;
-const heap = std.heap;
-const mem = std.mem;
 const fs = std.fs;
 const cmdline = @import("libs/cmdline.zig");
 

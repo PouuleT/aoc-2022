@@ -1,7 +1,5 @@
 const std = @import("std");
 const print = std.debug.print;
-const process = std.process;
-const heap = std.heap;
 const mem = std.mem;
 const fs = std.fs;
 const cmdline = @import("libs/cmdline.zig");
@@ -57,7 +55,6 @@ pub fn testPart1(filename: []const u8) !u32 {
         var d = findDoublons(first, second);
         max += d;
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 
@@ -96,7 +93,7 @@ pub fn testPart2(filename: []const u8) !u32 {
     var idx: u8 = 0;
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         firstThree[idx] = undefined;
-        std.mem.copy(u8, &firstThree[idx], line);
+        mem.copy(u8, &firstThree[idx], line);
         idx += 1;
 
         if (idx == 3) {
@@ -105,7 +102,6 @@ pub fn testPart2(filename: []const u8) !u32 {
             idx = 0;
         }
     }
-    print("Max: {d}\n", .{max});
     return max;
 }
 
