@@ -7,8 +7,6 @@ const cmdline = @import("libs/cmdline.zig");
 
 const allocator = std.heap.page_allocator;
 
-const max_size = 512;
-
 pub fn main() !void {
     const p = try cmdline.parse();
 
@@ -31,6 +29,15 @@ const Point = struct {
     pub fn moveVert(self: *Point, sign: i8) void {
         self.y += sign;
     }
+
+    pub fn move(self: *Point, direction: Direction) void {
+        switch (direction) {
+            Direction.Up => self.x += 1,
+            Direction.Down => self.x -= 1,
+            Direction.Left => self.y -= 1,
+            Direction.Right => self.y += 1,
+        }
+    }
 };
 
 const Direction = enum(u8) {
@@ -42,11 +49,8 @@ const Direction = enum(u8) {
 
 const Map = struct {
     len: u16,
-    points: [max_size][max_size]u8,
-    Head: Point,
-    Tail: Point,
+    Rope: [10]Point,
     map: std.AutoHashMap(Point, bool),
-    // std.AutoHashMap(Point, bool)
 
     pub fn Print(self: *Map) void {
         print("\n----------\n", .{});
@@ -58,10 +62,18 @@ const Map = struct {
                     .x = @intCast(i16, i),
                     .y = @intCast(i16, j),
                 };
-                var c: u8 = self.points[i][j];
+                var c: u8 = '.';
                 if (i == 0 and j == 0) c = 's';
-                if (std.meta.eql(cur, self.Tail)) c = 'T';
-                if (std.meta.eql(cur, self.Head)) c = 'H';
+                if (std.meta.eql(cur, self.Rope[0])) c = 'H';
+                if (std.meta.eql(cur, self.Rope[1])) c = '1';
+                if (std.meta.eql(cur, self.Rope[2])) c = '2';
+                if (std.meta.eql(cur, self.Rope[3])) c = '3';
+                if (std.meta.eql(cur, self.Rope[4])) c = '4';
+                if (std.meta.eql(cur, self.Rope[5])) c = '5';
+                if (std.meta.eql(cur, self.Rope[6])) c = '6';
+                if (std.meta.eql(cur, self.Rope[7])) c = '7';
+                if (std.meta.eql(cur, self.Rope[8])) c = '8';
+                if (std.meta.eql(cur, self.Rope[9])) c = '9';
                 print("{c}", .{c});
             }
             print("\n", .{});
@@ -70,18 +82,16 @@ const Map = struct {
         }
     }
 
-    pub fn init() !*Map {
+    pub fn init(max_size: u16) !*Map {
         var m = try allocator.create(Map);
         m.len = max_size;
-        m.points = [_][max_size]u8{[_]u8{'.'} ** max_size} ** max_size;
-        m.Tail = .{
-            .x = 128,
-            .y = 128,
-        };
-        m.Head = .{
-            .x = 128,
-            .y = 128,
-        };
+        var i: u16 = 0;
+        while (i < 10) : (i += 1) {
+            m.Rope[i] = .{
+                .x = 0,
+                .y = 0,
+            };
+        }
         m.map = std.AutoHashMap(Point, bool).init(allocator);
         return m;
     }
@@ -89,38 +99,31 @@ const Map = struct {
     pub fn move(self: *Map, direction: Direction, distance: u8) !void {
         var i: u8 = 0;
         while (i < distance) : (i += 1) {
-            self.moveHead(direction);
-            // self.Print();
-            try self.moveTail();
+            self.Rope[0].move(direction);
+            var j: u16 = 1;
+            while (j < self.len) : (j += 1) {
+                try self.moveTail(j - 1, j);
+            }
+            try self.map.put(self.Rope[self.len - 1], true);
             // self.Print();
         }
     }
 
-    pub fn moveHead(self: *Map, direction: Direction) void {
-        switch (direction) {
-            Direction.Up => self.Head.x += 1,
-            Direction.Down => self.Head.x -= 1,
-            Direction.Left => self.Head.y -= 1,
-            Direction.Right => self.Head.y += 1,
-        }
-    }
-
-    pub fn moveTail(self: *Map) !void {
+    pub fn moveTail(self: *Map, headIdx: u16, tailIdx: u16) !void {
+        var head: Point = self.Rope[headIdx];
+        var tail: Point = self.Rope[tailIdx];
         // Check if we need to move
-        var distX: i16 = @as(i16, self.Head.x) - @as(i16, self.Tail.x);
-        var distY: i16 = @as(i16, self.Head.y) - @as(i16, self.Tail.y);
+        var distX: i16 = @as(i16, head.x) - @as(i16, tail.x);
+        var distY: i16 = @as(i16, head.y) - @as(i16, tail.y);
         // Diagonal
         if (((try std.math.absInt(distX) >= 1) and (try std.math.absInt(distY) >= 1)) and (@max(try std.math.absInt(distY), try std.math.absInt(distX)) > 1)) {
-            self.Tail.moveHoriz(getSign(distX));
-            self.Tail.moveVert(getSign(distY));
+            self.Rope[tailIdx].moveHoriz(getSign(distX));
+            self.Rope[tailIdx].moveVert(getSign(distY));
         } else if (try std.math.absInt(distX) > 1) {
-            self.Tail.moveHoriz(getSign(distX));
+            self.Rope[tailIdx].moveHoriz(getSign(distX));
         } else if (try std.math.absInt(distY) > 1) {
-            self.Tail.moveVert(getSign(distY));
+            self.Rope[tailIdx].moveVert(getSign(distY));
         }
-        self.points[@intCast(usize, self.Tail.x)][@intCast(usize, self.Tail.y)] = '#';
-        var p: Point = .{ .x = self.Tail.x, .y = self.Tail.y };
-        try self.map.put(p, true);
         return;
     }
 
@@ -138,7 +141,7 @@ pub fn getSign(x: i16) i8 {
     }
 }
 
-pub fn parse(filename: []const u8) !?*Map {
+pub fn parse(filename: []const u8, size: u16) !?*Map {
     var file = try fs.cwd().openFile(filename, .{});
     defer file.close();
 
@@ -146,7 +149,7 @@ pub fn parse(filename: []const u8) !?*Map {
     var in_stream = buf_reader.reader();
 
     var buf: [5]u8 = undefined;
-    var m: ?*Map = try Map.init();
+    var m: ?*Map = try Map.init(size);
 
     while (try in_stream.readUntilDelimiterOrEof(buf[0..], '\n')) |line| {
         // m.?.Print();
@@ -160,13 +163,12 @@ pub fn parse(filename: []const u8) !?*Map {
 }
 
 pub fn testPart1(filename: []const u8) !u64 {
-    var map = try parse(filename);
-    // map.?.Print();
+    var map = try parse(filename, 2);
     return map.?.countTailVisited();
 }
 
 pub fn testPart2(filename: []const u8) !u64 {
-    var map = try parse(filename);
+    var map = try parse(filename, 10);
     return map.?.countTailVisited();
 }
 
@@ -178,10 +180,10 @@ test "part-1: input" {
     try std.testing.expectEqual(@as(u64, 6044), try testPart1("inputs/09/input"));
 }
 
-// test "part-2: example input" {
-//     try std.testing.expectEqual(@as(u64, 8), try testPart2("inputs/09/test-1"));
-// }
-//
-// test "part-2: input" {
-//     try std.testing.expectEqual(@as(u64, 211680), try testPart2("inputs/09/input"));
-// }
+test "part-2: example input" {
+    try std.testing.expectEqual(@as(u64, 1), try testPart2("inputs/09/test-1"));
+}
+
+test "part-2: input" {
+    try std.testing.expectEqual(@as(u64, 2384), try testPart2("inputs/09/input"));
+}
