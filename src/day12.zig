@@ -25,17 +25,35 @@ const Point = struct {
     y: usize,
     elevation: u8,
     distance: ?u32,
+    visited: bool,
+    tested: bool,
+
+    pub fn isEqual(self: *Point, p: *Point) bool {
+        if (p.x == self.x and p.y == self.y) return true;
+        return false;
+    }
+
+    pub fn validNeighbor(self: *Point, neigh: *Point) bool {
+        if (neigh.visited) return false;
+        if (neigh.tested) return false;
+        if (neigh.elevation > self.elevation + 1) return false;
+
+        var newDistance: u32 = self.distance.? + 1;
+        if (neigh.distance == null or neigh.distance.? > newDistance) {
+            neigh.distance = newDistance;
+            return true;
+        }
+        return false;
+    }
 };
 
 const Map = struct {
     width: usize,
     height: usize,
     map: [100][100]Point,
-    cur: *Point,
     start: *Point,
     end: *Point,
     predecessor: *Point,
-    prio: std.PriorityQueue(*Point, void, lessThan),
 
     fn lessThan(context: void, a: *Point, b: *Point) std.math.Order {
         _ = context;
@@ -44,87 +62,65 @@ const Map = struct {
         return std.math.order(da, db);
     }
 
-    pub fn Print(self: *Map) void {
+    pub fn Print(self: *Map, cur: *Point) void {
         print("\n----------\n", .{});
         var i: u16 = 0;
         var j: u16 = 0;
-        print("Width: {d} Height: {d}\n", .{ self.width, self.height });
-        print("Start: {d},{d}\n", .{ self.start.x, self.start.y });
-        print("End: {d},{d}\n", .{ self.end.x, self.end.y });
-        print("Current: {d},{d}\n", .{ self.cur.x, self.cur.y });
-        print("Map:\n", .{});
+
         while (i < self.height) : (i += 1) {
             while (j < self.width) : (j += 1) {
                 var c = self.map[i][j].elevation;
-                if (i == self.cur.x and j == self.cur.y) {
-                    print("{c}*", .{c});
-                    continue;
-                }
                 if (i == self.end.x and j == self.end.y) {
                     c = 'E';
                 } else if (i == self.start.x and j == self.start.y) {
                     c = 'S';
                 }
-                print("{c} ", .{c});
+                print("{c}", .{c});
+                if (self.map[i][j].isEqual(cur)) {
+                    print("@", .{});
+                    continue;
+                }
+                if (self.map[i][j].visited) {
+                    print("*", .{});
+                    continue;
+                }
+                print(" ", .{});
             }
             j = 0;
             print("\n", .{});
         }
+        print("\n", .{});
     }
 
     pub fn init() !*Map {
         var m = try allocator.create(Map);
         m.width = 0;
         m.height = 0;
-        m.prio = std.PriorityQueue(*Point, void, lessThan).init(allocator, undefined);
 
         return m;
     }
 
-    pub fn isFinished(self: Map) bool {
-        if (self.cur.x == self.end.x and self.cur.y == self.end.y) return true;
-        return false;
-    }
+    pub fn nextNeighborsUpdate(self: *Map, cur: *Point, prio: *std.PriorityQueue(*Point, void, lessThan)) !void {
+        var x = cur.x;
+        var y = cur.y;
 
-    pub fn next(self: *Map) *Point {
-        return self.prio.remove();
-    }
-
-    pub fn nextNeighbors(self: *Map) ![]*Point {
-        var neighbors: std.ArrayList(*Point) = std.ArrayList(*Point).init(allocator);
-        var x = self.cur.x;
-        var y = self.cur.y;
-        var val = self.cur.elevation;
-
-        if (x > 0) {
-            if (self.map[x - 1][y].elevation <= val + 1)
-                try neighbors.append(&self.map[x - 1][y]);
-        }
-        if (x < self.height - 1) {
-            if (self.map[x + 1][y].elevation <= val + 1)
-                try neighbors.append(&self.map[x + 1][y]);
-        }
-        if (y > 0) {
-            if (self.map[x][y - 1].elevation <= val + 1)
-                try neighbors.append(&self.map[x][y - 1]);
-        }
-        if (y < self.width - 1) {
-            if (self.map[x][y + 1].elevation <= val + 1)
-                try neighbors.append(&self.map[x][y + 1]);
-        }
-
-        return neighbors.items;
+        if ((y < self.width - 1) and (cur.validNeighbor(&self.map[x][y + 1])))
+            try prio.add(&self.map[x][y + 1]);
+        if ((y > 0) and (cur.validNeighbor(&self.map[x][y - 1])))
+            try prio.add(&self.map[x][y - 1]);
+        if ((x > 0) and (cur.validNeighbor(&self.map[x - 1][y])))
+            try prio.add(&self.map[x - 1][y]);
+        if ((x < self.height - 1) and (cur.validNeighbor(&self.map[x + 1][y])))
+            try prio.add(&self.map[x + 1][y]);
     }
 
     pub fn reinit(self: *Map) void {
-        while (self.prio.removeOrNull() != null) {
-            continue;
-        }
         var i: usize = 0;
         var j: usize = 0;
         while (i < self.height) : (i += 1) {
             while (j < self.width) : (j += 1) {
                 self.map[i][j].distance = null;
+                self.map[i][j].visited = false;
             }
             j = 0;
         }
@@ -132,26 +128,22 @@ const Map = struct {
 
     pub fn findShortestLen(self: *Map, start: *Point) !?u32 {
         self.reinit();
-        self.cur = start;
-        self.cur.distance = 0;
+        start.distance = 0;
+        var cpt: usize = 0;
 
-        try self.prio.add(start);
-        while (!self.isFinished()) {
-            if (self.prio.count() == 0) {
-                break;
+        var prio = std.PriorityQueue(*Point, void, lessThan).init(allocator, undefined);
+        defer prio.deinit();
+
+        try prio.add(start);
+        while (prio.removeOrNull()) |item| {
+            if (item.visited) continue;
+            if (self.end.isEqual(item)) {
+                return item.distance.?;
             }
-            self.cur = self.next();
-            for (try self.nextNeighbors()) |n| {
-                var newDistance: u32 = self.cur.distance.? + 1;
-                if (n.distance == null or n.distance.? > newDistance) {
-                    n.distance = newDistance;
-                    try self.prio.add(n);
-                }
-            }
-        } else {
-            return self.end.distance.?;
+            cpt += 1;
+            item.visited = true;
+            try self.nextNeighborsUpdate(item, &prio);
         }
-
         return null;
     }
 };
@@ -174,6 +166,7 @@ pub fn parse(filename: []const u8) !?*Map {
             m.map[i][j].elevation = line[j];
             m.map[i][j].x = i;
             m.map[i][j].y = j;
+            m.map[i][j].visited = false;
             m.map[i][j].distance = null;
             switch (m.map[i][j].elevation) {
                 'E' => {
@@ -215,11 +208,12 @@ pub fn testPart2(filename: []const u8) !u64 {
     var min: u32 = std.math.maxInt(u32);
     while (i < m.height) : (i += 1) {
         while (j < m.width) : (j += 1) {
-            if (m.map[i][j].elevation == 'a') {
-                if (try m.findShortestLen(&m.map[i][j])) |res| {
-                    min = @min(min, res);
-                }
+            if (m.map[i][j].elevation != 'a') continue;
+
+            if (try m.findShortestLen(&m.map[i][j])) |res| {
+                min = @min(min, res);
             }
+            m.map[i][j].tested = true;
         }
         j = 0;
     }
